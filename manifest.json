@@ -5,7 +5,7 @@
   "description":        "Export your University of Waterloo class schedule to your calendar",
   "content_scripts":    [
     {
-      "matches":          ["https://quest.pecs.uwaterloo.ca/*"],
+      "matches":          ["https://quest.pecs.uwaterloo.ca/*", "https://saself.ps.queensu.ca/*"],
       "all_frames":       true,
       "js":               ["jquery-1.9.1.min.js", "content_script.js"]
     }
