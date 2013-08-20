@@ -9,7 +9,7 @@
   * - Handle classes that cross 00:00 UTC (alter date)
 **/
 
-$(function() {
+jQuery(function($) {
 
   // Ontario is UTC-4
   utc_offset  = -4;
@@ -36,12 +36,12 @@ $(function() {
 
   // 19920517, 203000 -> 19920517T203000Z
   function formatDateTime(date, time) {
-    return date + 'T' + time + 'Z'
+    return date + 'T' + time + 'Z';
   }
 
   // MTWThF -> MO,TU,WE,TH,FR
   function getDaysOfWeek(s) {
-    days = []
+    days = [];
     if (s.match(/S[^a]/)) days.push("SU");
     if (s.match(/M/))     days.push("MO");
     if (s.match(/T[^h]/)) days.push("TU");
@@ -50,7 +50,7 @@ $(function() {
     if (s.match(/F/))     days.push("FR");
     if (s.match(/S[^u]/)) days.push("SA");
 
-    return days.join(',')
+    return days.join(',');
   }
 
   // VEVENT -> BEGIN:VCALENDAR...VEVENT...END:VCALENDAR
@@ -62,7 +62,7 @@ $(function() {
                     + "END:VCALENDAR\n";
   }
 
-  ics_content_array = []
+  ics_content_array = [];
 
   $(".PSGROUPBOXWBO").each(function() {
     event_name    = $(this).find(".PAGROUPDIVIDER").text();
@@ -90,7 +90,7 @@ $(function() {
         start_time      = getTimeString(start_end_times[0]);
         end_time        = getTimeString(start_end_times[1]);
 
-        days_of_week    = getDaysOfWeek(days_times.match(/[A-Za-z]* /)[0])
+        days_of_week    = getDaysOfWeek(days_times.match(/[A-Za-z]* /)[0]);
 
         ics_content = "BEGIN:VEVENT\n"
                     + "DTSTART:"  + formatDateTime(date_before, start_time) + "\n"
@@ -127,4 +127,4 @@ $(function() {
         + '\' );">Download</a>)' 
     );
   }
-})();
+});
