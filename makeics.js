@@ -77,11 +77,15 @@ function create_ics() {
         throw "Course tables not found.";
     }
     
+
+    
     // for each course
     frame.$('.PSGROUPBOXWBO:gt(0)').each(function() { 
-        _course_title_parts = $(this).find('td:eq(0)').text().split('-');
-        course_code = _course_title_parts[0];
-        course_name = _course_title_parts[1];
+        _course_title_parts = $(this).find('td:eq(0)').text().split(' - ');
+        course_code = _course_title_parts[0].trim();
+        course_name = _course_title_parts[1].trim();
+       
+       var component = '';
        
        // for each event
        $(this).find("tr:gt(7)").each(function() {
@@ -94,7 +98,10 @@ function create_ics() {
           
           //class_nbr = cells[0]; //ignore
           //section = cells[1]; //ignore
-          component = cells[2].trim(); //lecture or tutorial or lab
+          // if component (lecture or tutorial or lab) is omitted, it is the same as above
+          if(cells[2].trim().length > 0) {
+              component = cells[2].trim();
+          } 
           days_and_times = cells[3].split(' ');
           room = cells[4].trim();
           instructor = cells[5].trim();
@@ -187,7 +194,7 @@ try {
 })();
 }    
     catch(err){
-        alert("It didn't work :(\n"
+        alert("Schedule exporter didn't work :(\n"
         +"Make sure you are on the \"List View\" of \" My Class Schedule\".\n\n"
         +"Otherwise, report this: \n"
         +'v' + ver + '\n'
