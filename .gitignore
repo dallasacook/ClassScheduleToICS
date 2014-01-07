@@ -1,3 +1,2 @@
-*.zip
-icon.*
-screenshot.*
+.project
+.settings
