@@ -9,7 +9,8 @@ var weekdays_input = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 // 11:30AM -> 41400
 function time_to_seconds(time_str) {
-    m = time_str.match(/(\d*):(\d*)(\wM)/);
+    // time_str can be in the form "2:30PM" or "14:30" -- varies by browser for some reason.
+    m = time_str.match(/(\d*):(\d*)(\wM)?/);
     hour = parseInt(m[1]);
     min = parseInt(m[2]);
     if(m[3] == 'PM') hour += 12;
@@ -73,7 +74,7 @@ function create_ics_wrap(events) {
 function create_ics() {
      
     ics_events = [];
-    if($('.PSGROUPBOXWBO').length == 0) {
+    if(frame.$('.PSGROUPBOXWBO').length == 0) {
         throw "Course tables not found.";
     }
     
@@ -153,8 +154,30 @@ function create_ics() {
     return create_ics_wrap(ics_events);
 }
 
-try {
+        
+function initBookmarklet() {
+    (frame.CalendarBookmarklet = function(){
+        
+        if(parent.TargetContent.location.pathname.indexOf('SSR_SSENRL_LIST.GBL') == -1) {
+            throw "List view not found.";
+        }
+        
+        ics_content = create_ics();
+                        
+        frame.$('#ics_download').remove();
+        
+        frame.$('.PATRANSACTIONTITLE').append(' <span id="ics_download">('
+        +'<a href="data:text/calendar;charset=utf8,'
+        +encodeURIComponent(ics_content)
+        +'" download="coursecalendar.ics">Download .ics file</a>'
+        +')</span>');
+    })();
+}
+
+
 (function(){
+    
+    try {
     // the minimum version of jQuery we want
     var jquery_ver = "1.10.0";
    
@@ -177,26 +200,17 @@ try {
         } else {
             initBookmarklet();
         }
-        
-        function initBookmarklet() {
-            (frame.CalendarBookmarklet = function(){
-                ics_content = create_ics();
-                                
-                $('#ics_download').remove();
-                
-                frame.$('.PATRANSACTIONTITLE').append(' <span id="ics_download">('
-                +'<a href="data:text/calendar;charset=utf8,'
-                +encodeURIComponent(ics_content)
-                +'" download="coursecalendar.ics">Download .ics file</a>'
-                +')</span>');
-            })();
-        }
-})();
-}    
+     }    
     catch(err){
-        alert("Schedule exporter didn't work :(\n"
+        var msg="Schedule exporter didn't work :(\n"
         +"Make sure you are on the \"List View\" of \" My Class Schedule\".\n\n"
         +"Otherwise, report this: \n"
         +'v' + ver + '\n'
-        +err);
-}
+        +err + '\n';
+        
+        for (var x in frame.$.browser) {
+            msg += x +' ' + frame.$.browser[x] + '\n';
+        }
+        alert(msg);
+    }
+})();
