@@ -1,8 +1,11 @@
 /**
  * Class schedule to .ics file bookmarklet
  * Leo Koppel
- * Rewritten from the script by Keanu Lee (https://github.com/keanulee/ClassScheduleToICS)
+ * Based on the script by Keanu Lee (https://github.com/keanulee/ClassScheduleToICS)
+ *
+ * License: MIT (see LICENSE.md)
  */
+ 
 var ver='0.1'
 var frame = parent.TargetContent;
 var weekdays_input = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
