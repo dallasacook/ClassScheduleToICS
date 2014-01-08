@@ -72,31 +72,28 @@ function create_ics_wrap(events) {
 }
 
 function create_ics() {
-     
     ics_events = [];
     if(frame.$('.PSGROUPBOXWBO').length == 0) {
         throw "Course tables not found.";
     }
-    
 
-    
     // for each course
     frame.$('.PSGROUPBOXWBO:gt(0)').each(function() { 
-        _course_title_parts = $(this).find('td:eq(0)').text().split(' - ');
+        _course_title_parts = frame.$(this).find('td:eq(0)').text().split(' - ');
         course_code = _course_title_parts[0].trim();
         course_name = _course_title_parts[1].trim();
        
        var component = '';
        
        // for each event
-       $(this).find("tr:gt(7)").each(function() {
-          cells = $(this).find('td').map(function() { return $(this).text(); });
+       frame.$(this).find("tr:gt(7)").each(function() {
+          cells = frame.$(this).find('td').map(function() { return frame.$(this).text(); });
           
           // Sometimes solus lists extra rows with no date/time (?). Ignore them.
           if(cells[3].trim().length == 0) {
               return;
           }
-          
+
           //class_nbr = cells[0]; //ignore
           //section = cells[1]; //ignore
           // if component (lecture or tutorial or lab) is omitted, it is the same as above
@@ -156,8 +153,9 @@ function create_ics() {
 
         
 function initBookmarklet() {
-    (frame.CalendarBookmarklet = function(){
-        
+
+        frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/filesaver.js');
+
         if(parent.TargetContent.location.pathname.indexOf('SSR_SSENRL_LIST.GBL') == -1) {
             throw "List view not found.";
         }
@@ -167,11 +165,14 @@ function initBookmarklet() {
         frame.$('#ics_download').remove();
         
         frame.$('.PATRANSACTIONTITLE').append(' <span id="ics_download">('
-        +'<a href="data:text/calendar;charset=utf8,'
-        +encodeURIComponent(ics_content)
-        +'" download="coursecalendar.ics">Download .ics file</a>'
+        +'<a href="#" id="ics_download_link">Download .ics file</a>'
         +')</span>');
-    })();
+
+        frame.$('#ics_download_link').click( function() {
+            var blob = new Blob([ics_content], {type: "text/plain;charset=utf-8"});
+            frame.saveAs(blob, "coursecalendar.ics");
+            return false;
+        });
 }
 
 
