@@ -13,7 +13,7 @@ function time_to_seconds(time_str) {
     m = time_str.match(/(\d*):(\d*)(\wM)?/);
     hour = parseInt(m[1]);
     min = parseInt(m[2]);
-    if(m[3] == 'PM') hour += 12;
+    if(m[3] == 'PM' && hour < 12) hour += 12;
     return (hour*60 +min)*60;
 }
 
