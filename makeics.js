@@ -31,7 +31,6 @@ function date_to_string(date) {
         +pad( date.getHours() )
         +pad( date.getMinutes() )
         +pad( date.getSeconds() )
-        +'Z';
 }
 
 function title_case(str)
@@ -137,7 +136,7 @@ function create_ics() {
           +'SUMMARY:' + course_code + ' ' + component + '\r\n'
           +'LOCATION:' + title_case(room) + '\r\n'
           +'DESCRIPTION:' + course_code + ' - ' + course_name + ' ' + component + '. ' + instructor + '\r\n'
-          +'RRULE:FREQ=WEEKLY;UNTIL=' + date_to_string(range_end_date) + '\r\n'
+          +'RRULE:FREQ=WEEKLY;UNTIL=' + date_to_string(range_end_date) + 'Z' + '\r\n'
           +'END:VEVENT\r\n');
 
        }); // end each event
