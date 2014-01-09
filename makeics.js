@@ -5,24 +5,28 @@
  *
  * License: MIT (see LICENSE.md)
  */
- 
-var ver='0.1';
+
+var ver = '0.1';
 var frame = parent.TargetContent;
-var weekdays_input = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+var allowed_weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 var num_problem_rows = 0;
 
 // 11:30AM -> 41400
 function time_to_seconds(time_str) {
     // time_str can be in the form "2:30PM" or "14:30" -- varies by browser for some reason.
-    m = time_str.match(/(\d*):(\d*)(\wM)?/);
-    hour = parseInt(m[1]);
-    min = parseInt(m[2]);
-    if(m[3] == 'PM' && hour < 12) hour += 12;
+    var m = time_str.match(/(\d*):(\d*)(\wM)?/);
+    var hour = parseInt(m[1], 10);
+    var min = parseInt(m[2], 10);
+    if(m[3] == 'PM' && hour < 12) {
+        hour += 12;
+    }
     return (hour*60 +min)*60;
 }
 
 function pad(n) {
-      if (n<10) return '0'+n;
+      if (n<10) {
+          return '0'+n;
+      }
       return n;
 }
 
@@ -39,11 +43,13 @@ function date_to_string(date) {
 
 function title_case(str)
 {
-    return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
+    return str.replace(/\w\S*/g, function(txt){
+        return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+        });
 }
 
 function create_ics_wrap(events) {
-        ics_content = 'BEGIN:VCALENDAR\r\n'
+        return 'BEGIN:VCALENDAR\r\n'
         +"PRODID:-//Leo Koppel//Queen's Soulless Calendar Exporter//EN\r\n"
         +'VERSION:2.0\r\n'
         
@@ -65,18 +71,14 @@ function create_ics_wrap(events) {
         +'DTSTART:19701101T020000\r\n'
         +'RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU\r\n'
         +'END:STANDARD\r\n'
-        +'END:VTIMEZONE\r\n';
-
-        ics_content += events.join('\r\n')
-        ics_content += 'END:VCALENDAR\r\n';
-        
-        return ics_content;
-
+        +'END:VTIMEZONE\r\n'
+        + events.join('\r\n')
+        +'END:VCALENDAR\r\n';
 }
 
 // Parse a single row (given as an array of table cell content) and return the ICS string.
 // If the row should be ignored return false
-function row_to_ics(cells) {
+function row_to_ics(course_code, course_name, cells) {
     // Sometimes solus lists extra rows with no date/time (?). Ignore them.
           if(cells[3].trim().length == 0) {
               return false;
@@ -88,38 +90,59 @@ function row_to_ics(cells) {
           if(cells[2].trim().length > 0) {
               component = cells[2].trim();
           } 
-          days_and_times = cells[3].split(' ');
-          room = cells[4].trim();
-          instructor = cells[5].trim();
-          start_and_end = cells[6].split(' - ');
+          var days_and_times = cells[3].split(' ');
+          var room = cells[4].trim();
+          var instructor = cells[5].trim();
+          var start_and_end = cells[6].split(' - ');
 
-          input_weekday = days_and_times[0].trim(); // e.g. 'Mo'
-          input_start_time = days_and_times[1].trim(); // e.g. '8:30AM'
+          var input_weekday = days_and_times[0].trim(); // e.g. 'Mo'
+          var input_start_time = days_and_times[1].trim(); // e.g. '8:30AM'
           // days_and_times[2] is '-'
-          input_end_time = days_and_times[3].trim(); // e.g. '9:30AM'     
-          range_start_date = new Date(Date.parse(start_and_end[0]));
+          var input_end_time = days_and_times[3].trim(); // e.g. '9:30AM'     
+          var range_start_date = new Date(Date.parse(start_and_end[0]));
           
           // annoyingly, UNTIL must be given in UTC time
           // even then,, there were odd issues with calendars ending recurring events a day earlier
           // this quick fix just to adds a day.
-          range_end_date = new Date(Date.parse(start_and_end[1]));
+          var range_end_date = new Date(Date.parse(start_and_end[1]));
           range_end_date.setTime(range_end_date.getTime() + 24*(60*60*1000));
           
                     
           // Now we need to get the actual date of the class.
           // This is not trivial as "start_day" could be before this - probably the monday of that week, but not for sure
           // We have, e.g. "Mo 11:30AM - 12:30PM" from which we can get day of week and we know it is after range_start_date.
-          // JS days start at 0 for Sunday, and so does weekdays_input
-          start_day = weekdays_input.indexOf(input_weekday);
-          if(start_day == -1) {
-              throw 'Unexpected weekday format: ' + weekdays_input;
+          // JS days start at 0 for Sunday, and so does allowed_weekdays
+          var start_day = allowed_weekdays.indexOf(input_weekday);
+          
+          if(start_day == -1 && input_weekday.length > 2) {
+              // It could be that SOLUS gives more than one day, e.g. "TuTh" for both Tues. and Thurs.
+              // In this case, split it up and recurse.
+              var valid_weekdays = true;
+              var new_rows = [];
+              for(var i=0; i<input_weekday.length; i+=2) {
+                  var single_weekday = input_weekday.slice(i,i+2);
+                  if(allowed_weekdays.indexOf(single_weekday) == -1) {
+                      valid_weekdays = false;
+                      break;
+                  } else {
+                      var new_cells = cells.slice(0);
+                      new_cells[3] = single_weekday + ' ' + days_and_times.slice(1).join(' ');
+                      new_rows.push(new_cells);
+                  }
+              }
+              if(valid_weekdays) {
+                  // now recurse for new, single weekday rows.
+                  return new_rows.map(function(e) {return row_to_ics(course_code,course_name, e);}).join('\r\n');
+              }
+         
+              throw ('Unexpected weekday format: ' + allowed_weekdays);
           }
-          range_start_day = range_start_date.getDay();
-          incr = (7-range_start_day+start_day)%7;
+          var range_start_day = range_start_date.getDay();
+          var incr = (7-range_start_day+start_day)%7;
           
           // The real event start and end dates. Assume no class runs through midnight.
-          start_date = new Date(range_start_date.getTime() + incr*(24*60*60*1000) + time_to_seconds(input_start_time)*1000);
-          end_date = new Date(range_start_date.getTime() + incr*(24*60*60*1000) + time_to_seconds(input_end_time)*1000);
+          var start_date = new Date(range_start_date.getTime() + incr*(24*60*60*1000) + time_to_seconds(input_start_time)*1000);
+          var end_date = new Date(range_start_date.getTime() + incr*(24*60*60*1000) + time_to_seconds(input_end_time)*1000);
           
           return ('BEGIN:VEVENT\r\n'
           +'DTSTART;TZID=America/New_York:' + date_to_string(start_date) + '\r\n'
@@ -141,8 +164,8 @@ function create_ics() {
     // for each course
     frame.$('.PSGROUPBOXWBO:gt(0)').each(function() { 
         _course_title_parts = frame.$(this).find('td:eq(0)').text().split(' - ');
-        course_code = _course_title_parts[0].trim();
-        course_name = _course_title_parts[1].trim();
+        var course_code = _course_title_parts[0].trim();
+        var course_name = _course_title_parts[1].trim();
        
        var component = '';
        
@@ -150,8 +173,7 @@ function create_ics() {
        frame.$(this).find("tr:gt(7)").each(function() {
           var cells = frame.$(this).find('td').map(function() { return frame.$(this).text(); });
           try {
-            var event_string = row_to_ics(cells);
-            console.log(cells);
+            var event_string = row_to_ics(course_code, course_name, cells);
             if (event_string) {
                 // now append to the ics string
                 ics_events.push(event_string);
@@ -171,7 +193,6 @@ function create_ics() {
     if(ics_events.length == 0) {
         throw "No class entries found.";
     }
-    
     return create_ics_wrap(ics_events);
 }
 
@@ -239,10 +260,7 @@ function initBookmarklet() {
         +"Otherwise, report this: \n"
         +'v' + ver + '\n'
         +err + '\n';
-        
-        for (var x in frame.$.browser) {
-            msg += x +' ' + frame.$.browser[x] + '\n';
-        }
+
         alert(msg);
     }
 })();
