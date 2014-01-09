@@ -6,9 +6,10 @@
  * License: MIT (see LICENSE.md)
  */
  
-var ver='0.1'
+var ver='0.1';
 var frame = parent.TargetContent;
 var weekdays_input = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+var num_problem_rows = 0;
 
 // 11:30AM -> 41400
 function time_to_seconds(time_str) {
@@ -33,7 +34,7 @@ function date_to_string(date) {
         +'T'
         +pad( date.getHours() )
         +pad( date.getMinutes() )
-        +pad( date.getSeconds() )
+        +pad( date.getSeconds() );
 }
 
 function title_case(str)
@@ -73,27 +74,12 @@ function create_ics_wrap(events) {
 
 }
 
-function create_ics() {
-    ics_events = [];
-    if(frame.$('.PSGROUPBOXWBO').length == 0) {
-        throw "Course tables not found.";
-    }
-
-    // for each course
-    frame.$('.PSGROUPBOXWBO:gt(0)').each(function() { 
-        _course_title_parts = frame.$(this).find('td:eq(0)').text().split(' - ');
-        course_code = _course_title_parts[0].trim();
-        course_name = _course_title_parts[1].trim();
-       
-       var component = '';
-       
-       // for each event
-       frame.$(this).find("tr:gt(7)").each(function() {
-          cells = frame.$(this).find('td').map(function() { return frame.$(this).text(); });
-          
-          // Sometimes solus lists extra rows with no date/time (?). Ignore them.
+// Parse a single row (given as an array of table cell content) and return the ICS string.
+// If the row should be ignored return false
+function row_to_ics(cells) {
+    // Sometimes solus lists extra rows with no date/time (?). Ignore them.
           if(cells[3].trim().length == 0) {
-              return;
+              return false;
           }
 
           //class_nbr = cells[0]; //ignore
@@ -125,6 +111,9 @@ function create_ics() {
           // We have, e.g. "Mo 11:30AM - 12:30PM" from which we can get day of week and we know it is after range_start_date.
           // JS days start at 0 for Sunday, and so does weekdays_input
           start_day = weekdays_input.indexOf(input_weekday);
+          if(start_day == -1) {
+              throw 'Unexpected weekday format: ' + weekdays_input;
+          }
           range_start_day = range_start_date.getDay();
           incr = (7-range_start_day+start_day)%7;
           
@@ -132,8 +121,7 @@ function create_ics() {
           start_date = new Date(range_start_date.getTime() + incr*(24*60*60*1000) + time_to_seconds(input_start_time)*1000);
           end_date = new Date(range_start_date.getTime() + incr*(24*60*60*1000) + time_to_seconds(input_end_time)*1000);
           
-          // now append to the ics string
-          ics_events.push('BEGIN:VEVENT\r\n'
+          return ('BEGIN:VEVENT\r\n'
           +'DTSTART;TZID=America/New_York:' + date_to_string(start_date) + '\r\n'
           +'DTEND;TZID=America/New_York:' + date_to_string(end_date) + '\r\n'
           +'SUMMARY:' + course_code + ' ' + component + '\r\n'
@@ -141,13 +129,47 @@ function create_ics() {
           +'DESCRIPTION:' + course_code + ' - ' + course_name + ' ' + component + '. ' + instructor + '\r\n'
           +'RRULE:FREQ=WEEKLY;UNTIL=' + date_to_string(range_end_date) + 'Z' + '\r\n'
           +'END:VEVENT\r\n');
+    
+}
+
+function create_ics() {
+    var ics_events = [];
+    if(frame.$('.PSGROUPBOXWBO').length == 0) {
+        throw "Course tables not found.";
+    }
+
+    // for each course
+    frame.$('.PSGROUPBOXWBO:gt(0)').each(function() { 
+        _course_title_parts = frame.$(this).find('td:eq(0)').text().split(' - ');
+        course_code = _course_title_parts[0].trim();
+        course_name = _course_title_parts[1].trim();
+       
+       var component = '';
+       
+       // for each event
+       frame.$(this).find("tr:gt(7)").each(function() {
+          var cells = frame.$(this).find('td').map(function() { return frame.$(this).text(); });
+          try {
+            var event_string = row_to_ics(cells);
+            console.log(cells);
+            if (event_string) {
+                // now append to the ics string
+                ics_events.push(event_string);
+                frame.$(this).find('td').css('background', '#ebffeb'); // mark in light green
+            }
+          }
+          catch(err) {
+            // add the row to the 'could not parse' count and highlight it
+            num_problem_rows += 1;
+            frame.$(this).find('td').css('background', 'red');
+          }
 
        }); // end each event
         
     }); // end each course
     
     if(ics_events.length == 0) {
-        throw "No class entries found."
+        throw "No class entries found.";
     }
     
     return create_ics_wrap(ics_events);
@@ -175,6 +197,13 @@ function initBookmarklet() {
             frame.saveAs(blob, "coursecalendar.ics");
             return false;
         });
+        
+        if(num_problem_rows > 0) {
+            alert('ICS file was created, but I could not understand '
+            + num_problem_rows + ' '
+            + (num_problem_rows > 1 ? 'rows. These are' : 'row. This is')
+            + ' highlighted in red.');
+        }
 }
 
 
