@@ -157,7 +157,7 @@ function row_to_ics(course_code, course_name, cells) {
           +'DESCRIPTION:' + course_code + ' - ' + course_name + ' ' + component + '. ' + instructor + '\r\n'
           +'RRULE:FREQ=WEEKLY;UNTIL=' + date_to_string(range_end_date) + 'Z' + '\r\n'
           +'END:VEVENT\r\n');
-    
+
 }
 
 function create_ics() {
@@ -194,7 +194,7 @@ function create_ics() {
        }); // end each event
         
     }); // end each course
-    
+
     if(ics_events.length == 0) {
         throw "No class entries found.";
     }
@@ -204,65 +204,64 @@ function create_ics() {
         
 function initBookmarklet() {
 
-       frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/filesaver.js');
-
-       try {
-           var isFileSaverSupported = !!new Blob;
-       } catch (e) {
-           frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/blob.js');
-       }
-
-       try {
-           var isFileSaverSupported = !!new Blob;
-       } catch (e) {
-           throw "Browser does not support the filesaver script."
-       }
-
         if(parent.TargetContent.location.pathname.indexOf('SSR_SSENRL_LIST.GBL') == -1) {
             throw "List view not found.";
         }
 
-        ics_content = create_ics();
-                        
-        frame.$('#ics_download').remove();
-        
-        frame.$('.PATRANSACTIONTITLE').append(' <span id="ics_download">('
-        +'<a href="javascript:void(0)" id="ics_download_link">' + link_text + '</a>'
-        +')</span>');
+       try {
+           var checkBlobSupport = !!new frame.Blob;
+           frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/filesaver.js').done(runBookmarklet);
+       } catch (e) {
+           frame.$.when(frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/filesaver.js'),
+               frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/blob.js')).done(runBookmarklet);
+       }
 
-        frame.$('#ics_download_link').click( function() {
-            var blob = new Blob([ics_content], {type: "text/plain;charset=utf-8"});
-            frame.saveAs(blob, "coursecalendar.ics");
-            return false;
-        });
-
-
-        var msg = '';
-        
-        if(num_problem_rows > 0) {
-            msg += 'Success! ICS file was created, but I could not understand '
-            + num_problem_rows + ' '
-            + (num_problem_rows > 1 ? 'rows. These are' : 'row. This is')
-            + ' highlighted in red.';
-        } else {
-            msg += 'Success! All exported rows are highlighted in green.';
-        }
-
-        msg += '\n\nClick on the "Download .ics file" link to download.';
-
-        /* Safari problems require manual workarounds for now */
-        if (navigator.userAgent.indexOf('Safari') != -1 && navigator.userAgent.indexOf('Chrome') == -1) {
-            msg += '\n\nSafari users: If the file opens in a new window instead of downloading, '
-                 + 'use Save As (Ctrl-S or Cmd-S) and save it with a .ics extension. '
-                 + 'Then import into your calendar software.';
-        }
-
-        alert(msg);
 }
 
+function runBookmarklet() {
+
+    var checkBlobSupport = !!new frame.Blob;
+
+    ics_content = create_ics();
+
+    frame.$('#ics_download').remove();
+
+    frame.$('.PATRANSACTIONTITLE').append(' <span id="ics_download">('
+    +'<a href="javascript:void(0)" id="ics_download_link">' + link_text + '</a>'
+    +')</span>');
+
+    frame.$('#ics_download_link').click( function() {
+        var blob = new frame.Blob([ics_content], {type: "text/plain;charset=utf-8"});
+        frame.saveAs(blob, "coursecalendar.ics");
+        return false;
+    });
+
+
+    var msg = '';
+
+    if(num_problem_rows > 0) {
+        msg += 'Success! ICS file was created, but I could not understand '
+        + num_problem_rows + ' '
+        + (num_problem_rows > 1 ? 'rows. These are' : 'row. This is')
+        + ' highlighted in red.';
+    } else {
+        msg += 'Success! All exported rows are highlighted in green.';
+    }
+
+    msg += '\n\nClick on the "Download .ics file" link to download.';
+
+    /* Safari problems require manual workarounds for now */
+    if (navigator.userAgent.indexOf('Safari') != -1 && navigator.userAgent.indexOf('Chrome') == -1) {
+        msg += '\n\nSafari users: If the file opens in a new window instead of downloading, '
+             + 'use Save As (Ctrl-S or Cmd-S) and save it with a .ics extension. '
+             + 'Then import into your calendar software.';
+    }
+
+    alert(msg);
+}
 
 (function(){
-    
+
     try {
     // the minimum version of jQuery we want
     var jquery_ver = "1.10.0";
@@ -270,7 +269,7 @@ function initBookmarklet() {
         if (frame === undefined) {
             throw "TargetContent frame not found.";
         }
-    
+
         // check prior inclusion and version
         if (frame.jQuery === undefined || frame.jQuery.fn.jquery < jquery_ver) {
             var done = false;
