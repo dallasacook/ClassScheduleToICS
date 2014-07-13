@@ -1,15 +1,20 @@
 /**
  * Class schedule to .ics file bookmarklet
  * Leo Koppel
- * Based on the script by Keanu Lee (https://github.com/keanulee/ClassScheduleToICS)
+ * Based on the script by Keanu Lee
+ * (https://github.com/keanulee/ClassScheduleToICS)
+ *
+ * Depends on FileSaver.js (github.com/eligrey/FileSaver.js) and, in some
+ * browsers, Blob.js (github.com/eligrey/Blob.js).
  *
  * License: MIT (see LICENSE.md)
  */
 
-var ver = '0.1';
+var ver = '140712';
 var frame = parent.TargetContent;
 var allowed_weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 var num_problem_rows = 0;
+var link_text = 'Download .ics file';
 
 // 11:30AM -> 41400
 function time_to_seconds(time_str) {
@@ -50,7 +55,7 @@ function title_case(str)
 
 function create_ics_wrap(events) {
         return 'BEGIN:VCALENDAR\r\n'
-        +"PRODID:-//Leo Koppel//Queen's Soulless Calendar Exporter//EN\r\n"
+        +'PRODID:-//Leo Koppel//Queen\'s Soulless Calendar Exporter v' + ver + '//EN\r\n'
         +'VERSION:2.0\r\n'
         
         // timezone definition from http://erics-notes.blogspot.ca/2013/05/fixing-ics-time-zone.html
@@ -199,18 +204,30 @@ function create_ics() {
         
 function initBookmarklet() {
 
-        frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/filesaver.js');
+       frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/filesaver.js');
+
+       try {
+           var isFileSaverSupported = !!new Blob;
+       } catch (e) {
+           frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/blob.js');
+       }
+
+       try {
+           var isFileSaverSupported = !!new Blob;
+       } catch (e) {
+           throw "Browser does not support the filesaver script."
+       }
 
         if(parent.TargetContent.location.pathname.indexOf('SSR_SSENRL_LIST.GBL') == -1) {
             throw "List view not found.";
         }
-        
+
         ics_content = create_ics();
                         
         frame.$('#ics_download').remove();
         
         frame.$('.PATRANSACTIONTITLE').append(' <span id="ics_download">('
-        +'<a href="#" id="ics_download_link">Download .ics file</a>'
+        +'<a href="javascript:void(0)" id="ics_download_link">' + link_text + '</a>'
         +')</span>');
 
         frame.$('#ics_download_link').click( function() {
@@ -218,13 +235,29 @@ function initBookmarklet() {
             frame.saveAs(blob, "coursecalendar.ics");
             return false;
         });
+
+
+        var msg = '';
         
         if(num_problem_rows > 0) {
-            alert('ICS file was created, but I could not understand '
+            msg += 'Success! ICS file was created, but I could not understand '
             + num_problem_rows + ' '
             + (num_problem_rows > 1 ? 'rows. These are' : 'row. This is')
-            + ' highlighted in red.');
+            + ' highlighted in red.';
+        } else {
+            msg += 'Success! All exported rows are highlighted in green.';
         }
+
+        msg += '\n\nClick on the "Download .ics file" link to download.';
+
+        /* Safari problems require manual workarounds for now */
+        if (navigator.userAgent.indexOf('Safari') != -1 && navigator.userAgent.indexOf('Chrome') == -1) {
+            msg += '\n\nSafari users: If the file opens in a new window instead of downloading, '
+                 + 'use Save As (Ctrl-S or Cmd-S) and save it with a .ics extension. '
+                 + 'Then import into your calendar software.';
+        }
+
+        alert(msg);
 }
 
 
