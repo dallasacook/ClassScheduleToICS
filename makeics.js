@@ -32,7 +32,7 @@ function pad(n) {
       if (n<10) {
           return '0'+n;
       }
-      return n;
+      return n.toString();
 }
 
 // JS Date -> 20130602T130000
@@ -107,8 +107,8 @@ function row_to_ics(course_code, course_name, cells) {
           var range_start_date = new Date(Date.parse(start_and_end[0]));
           
           // annoyingly, UNTIL must be given in UTC time
-          // even then,, there were odd issues with calendars ending recurring events a day earlier
-          // this quick fix just to adds a day.
+          // even then, there were odd issues with calendars ending recurring events a day earlier
+          // this quick fix just adds a day.
           var range_end_date = new Date(Date.parse(start_and_end[1]));
           range_end_date.setTime(range_end_date.getTime() + 24*(60*60*1000));
           
