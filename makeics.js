@@ -53,6 +53,13 @@ function title_case(str)
         });
 }
 
+// Escape special characters as in iCalendar spec on Text values
+// (http://tools.ietf.org/html/rfc5545#section-3.3.11)
+// Also trim extra whitespace
+function escape_ics_text(text) {
+    return text.trim().replace(/[;,\\]/g, '\\$&').replace(/\r\n|\r|\n/gm, '\\n');
+}
+
 function create_ics_wrap(events) {
         return 'BEGIN:VCALENDAR\r\n'
         +'PRODID:-//Leo Koppel//Queen\'s Soulless Calendar Exporter v' + ver + '//EN\r\n'
@@ -89,17 +96,22 @@ function row_to_ics(course_code, course_name, cells) {
               return false;
           }
 
+          // Ignore the following columns:
           //class_nbr = cells[0]; //ignore
           //section = cells[1]; //ignore
+
+          // Fields used in human-readable text properties
           // if component (lecture or tutorial or lab) is omitted, it is the same as above
           if(cells[2].trim().length > 0) {
-              component = cells[2].trim();
-          } 
-          var days_and_times = cells[3].split(' ');
-          var room = cells[4].trim();
-          var instructor = cells[5].trim();
+              component = escape_ics_text(cells[2]);
+          }
+
+          var room = escape_ics_text(cells[4]);
+          var instructor = escape_ics_text(cells[5]);
           var start_and_end = cells[6].split(' - ');
 
+          // Fields used in date and calendar rule properties
+          var days_and_times = cells[3].split(' ');
           var input_weekday = days_and_times[0].trim(); // e.g. 'Mo'
           var input_start_time = days_and_times[1].trim(); // e.g. '8:30AM'
           // days_and_times[2] is '-'
@@ -169,8 +181,8 @@ function create_ics() {
     // for each course
     frame.$('.PSGROUPBOXWBO:gt(0)').each(function() { 
         _course_title_parts = frame.$(this).find('td:eq(0)').text().split(' - ');
-        var course_code = _course_title_parts[0].trim();
-        var course_name = _course_title_parts[1].trim();
+        var course_code = escape_ics_text(_course_title_parts[0]);
+        var course_name = escape_ics_text(_course_title_parts[1]);
        
        var component = '';
        
