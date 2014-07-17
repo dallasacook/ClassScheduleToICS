@@ -10,7 +10,7 @@
  * License: MIT (see LICENSE.md)
  */
 
-var ver = '140712';
+var ver = '140717';
 var frame = parent.TargetContent;
 var allowed_weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 var num_courses = 0, num_rows = 0, num_problem_rows = 0, num_events = 0;
@@ -245,13 +245,19 @@ function show_results(ics_content) {
 
     var download_button = frame.$('<button type="button" id="ics_download_link">' + link_text + '</button>').appendTo(download_p);
 
-    infobox.append('<p id="ics_results_summary">' +
+    infobox.append('<p>' +
                     'I found <b>' + num_rows + '</b> row' + (num_rows==1?'':'s')
                     + ' under <b>' + num_courses + '</b> course' + (num_courses==1?'':'s') + '.</br>'
                     + 'I could not understand <b>' + num_problem_rows + '</b> row' + (num_problem_rows==1?'':'s')
                     + ' (highlighted in <span class="ics_c_r">red</span>).</br>'
                     + 'The calendar file contains <b>' + num_events + '</b> event' + (num_events==1?'':'s') + '.'
                     + '</p>');
+                    
+    infobox.append('<p style="font-size:0.5em; text-align:right;">' +
+    '<a href="http://blog.whither.ca/export-solus-course-calendar/" target="_blank">Instructions</a>' +
+    ' <a href="https://github.com/leokoppel/ClassScheduleToICS/issues" target="_blank">Issues</a>' +
+    ' <i>Soulless v' + ver + '</i>' +
+    '</p>');
 
     download_button.click( function() {
         var blob = new frame.Blob([ics_content], {type: "text/plain;charset=utf-8"});
