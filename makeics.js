@@ -13,7 +13,7 @@
 var ver = '140712';
 var frame = parent.TargetContent;
 var allowed_weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-var num_problem_rows = 0;
+var num_courses = 0, num_rows = 0, num_problem_rows = 0, num_events = 0;
 var link_text = 'Download .ics file';
 
 // 11:30AM -> 41400
@@ -64,7 +64,7 @@ function create_ics_wrap(events) {
         return 'BEGIN:VCALENDAR\r\n'
         +'PRODID:-//Leo Koppel//Queen\'s Soulless Calendar Exporter v' + ver + '//EN\r\n'
         +'VERSION:2.0\r\n'
-        
+
         // timezone definition from http://erics-notes.blogspot.ca/2013/05/fixing-ics-time-zone.html
         +'BEGIN:VTIMEZONE\r\n'
         +'TZID:America/New_York\r\n'
@@ -93,7 +93,7 @@ function create_ics_wrap(events) {
 function row_to_ics(course_code, course_name, cells) {
     // Sometimes solus lists extra rows with no date/time (?). Ignore them.
           if(cells[3].trim().length == 0) {
-              return false;
+              throw('Row is missing Days & Times field.');
           }
 
           // Ignore the following columns:
@@ -115,22 +115,21 @@ function row_to_ics(course_code, course_name, cells) {
           var input_weekday = days_and_times[0].trim(); // e.g. 'Mo'
           var input_start_time = days_and_times[1].trim(); // e.g. '8:30AM'
           // days_and_times[2] is '-'
-          var input_end_time = days_and_times[3].trim(); // e.g. '9:30AM'     
+          var input_end_time = days_and_times[3].trim(); // e.g. '9:30AM'
           var range_start_date = new Date(Date.parse(start_and_end[0]));
-          
+
           // annoyingly, UNTIL must be given in UTC time
           // even then, there were odd issues with calendars ending recurring events a day earlier
           // this quick fix just adds a day.
           var range_end_date = new Date(Date.parse(start_and_end[1]));
           range_end_date.setTime(range_end_date.getTime() + 24*(60*60*1000));
-          
-                    
+
           // Now we need to get the actual date of the class.
           // This is not trivial as "start_day" could be before this - probably the monday of that week, but not for sure
           // We have, e.g. "Mo 11:30AM - 12:30PM" from which we can get day of week and we know it is after range_start_date.
           // JS days start at 0 for Sunday, and so does allowed_weekdays
           var start_day = allowed_weekdays.indexOf(input_weekday);
-          
+
           if(start_day == -1 && input_weekday.length > 2) {
               // It could be that SOLUS gives more than one day, e.g. "TuTh" for both Tues. and Thurs.
               // In this case, split it up and recurse.
@@ -151,16 +150,18 @@ function row_to_ics(course_code, course_name, cells) {
                   // now recurse for new, single weekday rows.
                   return new_rows.map(function(e) {return row_to_ics(course_code,course_name, e);}).join('\r\n');
               }
-         
+
               throw ('Unexpected weekday format: ' + allowed_weekdays);
           }
           var range_start_day = range_start_date.getDay();
           var incr = (7-range_start_day+start_day)%7;
-          
+
           // The real event start and end dates. Assume no class runs through midnight.
           var start_date = new Date(range_start_date.getTime() + incr*(24*60*60*1000) + time_to_seconds(input_start_time)*1000);
           var end_date = new Date(range_start_date.getTime() + incr*(24*60*60*1000) + time_to_seconds(input_end_time)*1000);
-          
+
+          num_events += 1;
+
           return ('BEGIN:VEVENT\r\n'
           +'DTSTART;TZID=America/New_York:' + date_to_string(start_date) + '\r\n'
           +'DTEND;TZID=America/New_York:' + date_to_string(end_date) + '\r\n'
@@ -179,41 +180,106 @@ function create_ics() {
     }
 
     // for each course
-    frame.$('.PSGROUPBOXWBO:gt(0)').each(function() { 
+    frame.$('.PSGROUPBOXWBO:gt(0)').each(function() {
         _course_title_parts = frame.$(this).find('td:eq(0)').text().split(' - ');
         var course_code = escape_ics_text(_course_title_parts[0]);
         var course_name = escape_ics_text(_course_title_parts[1]);
-       
+
        var component = '';
-       
-       // for each event
+
+       // for each row
        frame.$(this).find("tr:gt(7)").each(function() {
-          var cells = frame.$(this).find('td').map(function() { return frame.$(this).text(); });
           try {
+            var cells = frame.$(this).find('td').map(function() { return frame.$(this).text(); });
             var event_string = row_to_ics(course_code, course_name, cells);
             if (event_string) {
                 // now append to the ics string
                 ics_events.push(event_string);
-                frame.$(this).find('td').css('background', '#ebffeb'); // mark in light green
+                frame.$(this).find('td').addClass('ics_c_g'); // mark in light green
             }
           }
           catch(err) {
             // add the row to the 'could not parse' count and highlight it
             num_problem_rows += 1;
-            frame.$(this).find('td').css('background', 'red');
+            frame.$(this).find('td').addClass('ics_c_r');
           }
 
-       }); // end each event
-        
+          num_rows += 1;
+       }); // end each row
+
+       num_courses += 1;
     }); // end each course
 
-    if(ics_events.length == 0) {
-        throw "No class entries found.";
-    }
     return create_ics_wrap(ics_events);
 }
 
-        
+
+// Create the download link for a file containing ics_content
+// and show info about the script results
+function show_results(ics_content) {
+
+    // Construct message to user
+    var msg = '';
+
+    if(num_events > 0) {
+        msg += '<b>Success!</b> A calendar file was created.';
+
+        // Safari problems require manual workarounds for now
+        if (navigator.userAgent.indexOf('Safari') != -1 && navigator.userAgent.indexOf('Chrome') == -1) {
+            msg += '</p><p><b>Safari users:</b> If the file opens in a new window instead of downloading, '
+                 + 'use <b>Save As</b> (Ctrl-S or Cmd-S) and save it <b>with a .ics extension.</b> '
+                 + 'For example, as <i>classes.ics</i>.'
+                 + 'Then import into your calendar software.';
+        }
+    } else {
+        msg += '<b>Failure.</b> A calendar file could not be created.';
+    }
+
+    // Create page elements
+    frame.$('#ics_download').remove();
+
+    var infobox = frame.$('<div id="ics_download">').insertAfter('.PATRANSACTIONTITLE');
+
+    var msg_p = frame.$('<p id="ics_results_msg">' + msg + '</p>').appendTo(infobox);
+    var download_p = frame.$('<p style="text-align:center">').appendTo(infobox);
+
+    var download_button = frame.$('<button type="button" id="ics_download_link">' + link_text + '</button>').appendTo(download_p);
+
+    infobox.append('<p id="ics_results_summary">' +
+                    'I found <b>' + num_rows + '</b> row' + (num_rows==1?'':'s')
+                    + ' under <b>' + num_courses + '</b> course' + (num_courses==1?'':'s') + '.</br>'
+                    + 'I could not understand <b>' + num_problem_rows + '</b> row' + (num_problem_rows==1?'':'s')
+                    + ' (highlighted in <span class="ics_c_r">red</span>).</br>'
+                    + 'The calendar file contains <b>' + num_events + '</b> event' + (num_events==1?'':'s') + '.'
+                    + '</p>');
+
+    download_button.click( function() {
+        var blob = new frame.Blob([ics_content], {type: "text/plain;charset=utf-8"});
+        frame.saveAs(blob, "coursecalendar.ics");
+        return false;
+    });
+
+    // Add styling for info box and previously highlighted (classed) rows
+    $('<style type="text/css"> ' +
+    '.ics_c_r { background-color: #e37d7d; } ' +
+    '.ics_c_g { background-color: #ebffeb; } ' +
+    '</style>').appendTo("head");
+
+    infobox.css({'background-color': '#ebffeb',
+                 'border' : 'solid rgb(114,175,69) 1px',
+                 'padding' : '0 1em',
+                 'font-family': 'Verdana,Arial,sans-serif',
+                 'font-size' : '0.9em'});
+
+    if(num_events > 0) {
+        download_button.css('font-size', '1.5em');
+    } else {
+        download_button.hide();
+        infobox.css('background-color', '#edc2c2');
+    }
+
+}
+
 function initBookmarklet() {
 
         if(parent.TargetContent.location.pathname.indexOf('SSR_SSENRL_LIST.GBL') == -1) {
@@ -236,40 +302,8 @@ function runBookmarklet() {
 
     ics_content = create_ics();
 
-    frame.$('#ics_download').remove();
+    show_results(ics_content);
 
-    frame.$('.PATRANSACTIONTITLE').append(' <span id="ics_download">('
-    +'<a href="javascript:void(0)" id="ics_download_link">' + link_text + '</a>'
-    +')</span>');
-
-    frame.$('#ics_download_link').click( function() {
-        var blob = new frame.Blob([ics_content], {type: "text/plain;charset=utf-8"});
-        frame.saveAs(blob, "coursecalendar.ics");
-        return false;
-    });
-
-
-    var msg = '';
-
-    if(num_problem_rows > 0) {
-        msg += 'Success! ICS file was created, but I could not understand '
-        + num_problem_rows + ' '
-        + (num_problem_rows > 1 ? 'rows. These are' : 'row. This is')
-        + ' highlighted in red.';
-    } else {
-        msg += 'Success! All exported rows are highlighted in green.';
-    }
-
-    msg += '\n\nClick on the "Download .ics file" link to download.';
-
-    /* Safari problems require manual workarounds for now */
-    if (navigator.userAgent.indexOf('Safari') != -1 && navigator.userAgent.indexOf('Chrome') == -1) {
-        msg += '\n\nSafari users: If the file opens in a new window instead of downloading, '
-             + 'use Save As (Ctrl-S or Cmd-S) and save it with a .ics extension. '
-             + 'Then import into your calendar software.';
-    }
-
-    alert(msg);
 }
 
 (function(){
@@ -277,7 +311,7 @@ function runBookmarklet() {
     try {
     // the minimum version of jQuery we want
     var jquery_ver = "1.10.0";
-   
+
         if (frame === undefined) {
             throw "TargetContent frame not found.";
         }
@@ -297,7 +331,7 @@ function runBookmarklet() {
         } else {
             initBookmarklet();
         }
-     }    
+     }
     catch(err){
         var msg="Schedule exporter didn't work :(\n"
         +"Make sure you are on the \"List View\" of \" My Class Schedule\".\n\n"
