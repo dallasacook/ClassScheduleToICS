@@ -213,6 +213,28 @@ function create_ics() {
     return create_ics_wrap(ics_events);
 }
 
+// Create the results infobox and show a spinner while additional scripts are
+// loaded & run
+function show_loading_box() {
+
+    // remove infobox from any previous run
+    var infobox = frame.document.getElementById('ics_box');
+    if(infobox) { infobox.parentNode.removeChild(infobox); }
+
+    frame.document.getElementById('ACE_DERIVED_REGFRM1_GROUP_BOX').insertAdjacentHTML('afterend',
+    '<div id="ics_box" style="border:1px solid rgb(114, 175, 69); padding:0px 1em;' +
+     'font-family:Verdana,sans-serif; font-size:0.9em; background-color:#ebffeb;">' +
+     '<div id="ics_spinner" style="text-align:center; font-family:monospace;">' +
+     '..</div></div>');
+
+    var spinner = frame.document.getElementById('ics_spinner');
+    var k = 0, s = ['.:', ':.'];
+    setInterval(function () {
+        k = +!k;
+        spinner.innerHTML =s[k];
+    }, 200);
+
+}
 
 // Create the download link for a file containing ics_content
 // and show info about the script results
@@ -236,9 +258,8 @@ function show_results(ics_content) {
     }
 
     // Create page elements
-    frame.$('#ics_download').remove();
-
-    var infobox = frame.$('<div id="ics_download">').insertAfter('.PATRANSACTIONTITLE');
+    var infobox = frame.$('#ics_box');
+    frame.$('#ics_spinner').remove();
 
     var msg_p = frame.$('<p id="ics_results_msg">' + msg + '</p>').appendTo(infobox);
     var download_p = frame.$('<p style="text-align:center">').appendTo(infobox);
@@ -252,11 +273,11 @@ function show_results(ics_content) {
                     + ' (highlighted in <span class="ics_c_r">red</span>).</br>'
                     + 'The calendar file contains <b>' + num_events + '</b> event' + (num_events==1?'':'s') + '.'
                     + '</p>');
-                    
+
     infobox.append('<p style="font-size:0.5em; text-align:right;">' +
     '<a href="http://blog.whither.ca/export-solus-course-calendar/" target="_blank">Instructions</a>' +
     ' <a href="https://github.com/leokoppel/ClassScheduleToICS/issues" target="_blank">Issues</a>' +
-    ' <i>Soulless v' + ver + '</i>' +
+    ' <i>v' + ver + '</i>' +
     '</p>');
 
     download_button.click( function() {
@@ -270,12 +291,6 @@ function show_results(ics_content) {
     '.ics_c_r { background-color: #e37d7d; } ' +
     '.ics_c_g { background-color: #ebffeb; } ' +
     '</style>').appendTo("head");
-
-    infobox.css({'background-color': '#ebffeb',
-                 'border' : 'solid rgb(114,175,69) 1px',
-                 'padding' : '0 1em',
-                 'font-family': 'Verdana,Arial,sans-serif',
-                 'font-size' : '0.9em'});
 
     if(num_events > 0) {
         download_button.css('font-size', '1.5em');
@@ -315,8 +330,11 @@ function runBookmarklet() {
 (function(){
 
     try {
-    // the minimum version of jQuery we want
-    var jquery_ver = "1.10.0";
+        // Show spinner before loading any other scripts
+        show_loading_box();
+
+        // the minimum version of jQuery we want
+        var jquery_ver = "1.10.0";
 
         if (frame === undefined) {
             throw "TargetContent frame not found.";
