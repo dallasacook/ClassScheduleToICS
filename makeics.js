@@ -81,8 +81,9 @@ function create_ics(class_events) {
     'END:STANDARD\r\n' +
     'END:VTIMEZONE\r\n';
 
-    for(var i=0; i<class_events.length; i++) {
-        var c = class_events[i];
+    var i, c;
+    for(i=0; i<class_events.length; i++) {
+        c = class_events[i];
         s += ('\r\nBEGIN:VEVENT\r\n' +
         'DTSTART;TZID=America/New_York:' + date_to_string(c.start_date) + '\r\n' +
         'DTEND;TZID=America/New_York:' + date_to_string(c.end_date) + '\r\n' +
@@ -102,7 +103,7 @@ function create_ics(class_events) {
 // If the row could not be understood, throw an exception.
 function parse_row(course_code, course_name, cells, output_array) {
     // Sometimes solus lists extra rows with no date/time (?). Ignore them.
-    if(cells[3].trim().length == 0) {
+    if(cells[3].trim().length === 0) {
         throw ('Row is missing Days & Times field.');
     }
 
@@ -111,9 +112,12 @@ function parse_row(course_code, course_name, cells, output_array) {
     //section = cells[1]; //ignore
 
     // Fields used in human-readable text properties
-    // if component (lecture or tutorial or lab) is omitted, it is the same as above
+    // if component (lecture or tutorial or lab) is omitted, it is the same as previous row
+    var component;
     if(cells[2].trim().length > 0) {
         component = escape_ics_text(cells[2]);
+    } else {
+        component = output_array[output_array.length-1].component;
     }
 
     var room = escape_ics_text(cells[4]);
@@ -146,7 +150,8 @@ function parse_row(course_code, course_name, cells, output_array) {
     // Thus we treat the field as a string of one or more two-character weekdays to begin with
     var start_days = [];
 
-    for(var i = 0; i < input_weekday.length; i += 2) {
+    var i;
+    for(i = 0; i < input_weekday.length; i += 2) {
         // Check each two-character substring against valid weekdays
         var single_start_day = allowed_weekdays.indexOf(input_weekday.slice(i, i + 2));
         if(single_start_day == -1) {
@@ -159,8 +164,7 @@ function parse_row(course_code, course_name, cells, output_array) {
 
     if(start_days.length > 0) {
         // Now add an event object for each weekday (though there is usually only one)
-        console.log(start_days);
-        for(var i = 0; i < start_days.length; i++) {
+        for(i = 0; i < start_days.length; i++) {
             var range_start_day = range_start_date.getDay();
             var incr = (7 - range_start_day + start_days[i]) % 7;
             // number of days until the first occurrence of that weekday, after range_start_date
@@ -188,17 +192,15 @@ function parse_row(course_code, course_name, cells, output_array) {
 
 function get_class_events() {
     var class_events = [];
-    if(frame.$('.PSGROUPBOXWBO').length == 0) {
+    if(frame.$('.PSGROUPBOXWBO').length === 0) {
         throw "Course tables not found.";
     }
 
     // for each course
     frame.$('.PSGROUPBOXWBO:gt(0)').each(function() {
-        _course_title_parts = frame.$(this).find('td:eq(0)').text().split(' - ');
+        var _course_title_parts = frame.$(this).find('td:eq(0)').text().split(' - ');
         var course_code = escape_ics_text(_course_title_parts[0]);
         var course_name = escape_ics_text(_course_title_parts[1]);
-
-        var component = '';
 
         // for each row
         frame.$(this).find("tr:gt(7)").each(function() {
@@ -258,13 +260,14 @@ function initBookmarklet() {
         throw "List view not found.";
     }
 
+    var scripts = ['https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/filesaver.js'];
     try {
         var checkBlobSupport = !!new frame.Blob;
-        frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/filesaver.js').done(runBookmarklet);
     } catch (e) {
-        frame.$.when(frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/filesaver.js'),
-                     frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/blob.js')).done(runBookmarklet);
+        scripts.push('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/blob.js');
     }
+
+    frame.$.when.apply(this, scripts).done(runBookmarklet);
 }
 
 // Parse the page to create the iCalendar file
@@ -273,7 +276,6 @@ function initBookmarklet() {
 function runBookmarklet() {
 
     var class_events = get_class_events();
-    console.log(class_events);
     var num_events = class_events.length;
     var ics_content = create_ics(class_events);
 
@@ -323,7 +325,7 @@ function runBookmarklet() {
     });
 
     // Add styling for info box and previously highlighted (classed) rows
-    $('<style type="text/css"> ' +
+    frame.$('<style type="text/css"> ' +
       '.ics_c_r { background-color: #e37d7d; } ' +
       '.ics_c_g { background-color: #ebffeb; } ' +
       '</style>').appendTo("head");
