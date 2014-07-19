@@ -49,9 +49,8 @@ function title_case(str) {
 
 // Escape special characters as in iCalendar spec on Text values
 // (http://tools.ietf.org/html/rfc5545#section-3.3.11)
-// Also trim extra whitespace
 function escape_ics_text(text) {
-    return text.trim().replace(/[;,\\]/g, '\\$&').replace(/\r\n|\r|\n/gm, '\\n');
+    return text.replace(/[;,\\]/g, '\\$&').replace(/\r\n|\r|\n/gm, '\\n');
 }
 
 
@@ -87,9 +86,9 @@ function create_ics(class_events) {
         s += ('\r\nBEGIN:VEVENT\r\n' +
         'DTSTART;TZID=America/New_York:' + date_to_string(c.start_date) + '\r\n' +
         'DTEND;TZID=America/New_York:' + date_to_string(c.end_date) + '\r\n' +
-        'SUMMARY:' + c.course_code + ' ' + c.component + '\r\n' +
-        'LOCATION:' + title_case(c.room) + '\r\n' +
-        'DESCRIPTION:' + c.course_code + ' - ' + c.course_name + ' ' + c.component + '. ' + c.instructor + '\r\n' +
+        'SUMMARY:' + escape_ics_text(c.course_code + ' ' + c.component) + '\r\n' +
+        'LOCATION:' + escape_ics_text(title_case(c.room)) + '\r\n' +
+        'DESCRIPTION:' + escape_ics_text(c.course_code + ' - ' + c.course_name + ' ' + c.component + '. ' + c.instructor) + '\r\n' +
         'RRULE:FREQ=WEEKLY;UNTIL=' + date_to_string(c.range_end_date) + 'Z' + '\r\n' +
         'END:VEVENT\r\n');
     }
@@ -115,13 +114,13 @@ function parse_row(course_code, course_name, cells, output_array) {
     // if component (lecture or tutorial or lab) is omitted, it is the same as previous row
     var component;
     if(cells[2].trim().length > 0) {
-        component = escape_ics_text(cells[2]);
+        component = cells[2].trim();
     } else {
         component = output_array[output_array.length-1].component;
     }
 
-    var room = escape_ics_text(cells[4]);
-    var instructor = escape_ics_text(cells[5]);
+    var room = cells[4].trim();
+    var instructor = cells[5].trim();
     var start_and_end = cells[6].split(' - ');
 
     // Fields used in date and calendar rule properties
@@ -199,8 +198,8 @@ function get_class_events() {
     // for each course
     frame.$('.PSGROUPBOXWBO:gt(0)').each(function() {
         var _course_title_parts = frame.$(this).find('td:eq(0)').text().split(' - ');
-        var course_code = escape_ics_text(_course_title_parts[0]);
-        var course_name = escape_ics_text(_course_title_parts[1]);
+        var course_code = _course_title_parts[0].trim();
+        var course_name = _course_title_parts[1].trim();
 
         // for each row
         frame.$(this).find("tr:gt(7)").each(function() {
@@ -255,6 +254,43 @@ function get_hours_of_class(class_events) {
     return total_hours;
 }
 
+// Find and combine overlapping "duplicate" classes in event array
+// A "duplicate" is generally a lab with multiple events listed at the same
+// time, only in different rooms
+function combine_duplicate_classes(input_events) {
+    var i, k, p, x, y, dup;
+    var output_events = [];
+    for(i=0; i<input_events.length; i++) {
+        x = input_events[i];
+        for(k=0; k<output_events.length; k++) {
+            y = output_events[k];
+            matches = [];
+            dup = true;
+            for(p in x) {
+                if(x.start_date.getTime() != y.start_date.getTime()
+                || x.end_date.getTime() != y.end_date.getTime()
+                || x.start_date.getTime() != y.start_date.getTime()
+                || x.range_end_date.getTime() != y.range_end_date.getTime()
+                || x.component != y.component
+                || x.course_code != y.course_code
+                ) {
+                    dup = false;
+                    break;
+                }
+            }
+            if(dup) {
+                // Just add to the room field
+                y.room += ', ' + x.room;
+                break;
+            }
+        }
+        if(!dup) {
+            output_events.push(x);
+        }
+    }
+    return output_events;
+}
+
 // Create the results infobox and show a spinner while additional scripts are
 // loaded & run
 function show_loading_box() {
@@ -301,6 +337,13 @@ function runBookmarklet() {
 
     var class_events = get_class_events();
     var num_events = class_events.length;
+
+    // Remove duplicate labs
+    class_events = combine_duplicate_classes(class_events);
+    var num_removed = num_events - class_events.length;
+    num_events = class_events.length;
+
+    // Construct iCalendar file
     var ics_content = create_ics(class_events);
 
     // Construct message to user
@@ -332,6 +375,7 @@ function runBookmarklet() {
                    ' under <b>' + num_courses + '</b> course' + (num_courses == 1 ? '' : 's') + '.</br>' +
                    'I could not understand <b>' + num_problem_rows + '</b> row' + (num_problem_rows == 1 ? '' : 's') +
                    ' (highlighted in <span class="ics_c_r">red</span>).</br>' +
+                   ' <b>' + num_removed + '</b> overlapping event' + (num_removed == 1 ? '' : 's') + ' were merged into another.</br>' +
                    'The calendar file contains <b>' + num_events + '</b> event' + (num_events == 1 ? '' : 's') + '.</p>' +
                    '<p><i>Experimental:</i> You have <b>' + (+get_hours_of_class(class_events).toFixed(1)) + '</b> hours of class weekly.' +
                    '</p>');
