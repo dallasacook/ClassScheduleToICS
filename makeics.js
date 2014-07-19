@@ -10,7 +10,7 @@
  * License: MIT (see LICENSE.md)
  */
 
-var ver = '140718';
+var ver = '140719';
 var frame = parent.TargetContent;
 var allowed_weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 var num_courses = 0, num_rows = 0, num_problem_rows = 0;
@@ -231,6 +231,30 @@ function get_class_events() {
     return class_events;
 }
 
+// Calculate non-overlapping hours of class given events array
+// Note this implementation only throws away overlapping classes that start
+// at the same time (TODO)
+function get_hours_of_class(class_events) {
+    var i, c, k, total_hours = 0;
+    var class_times = [];
+    for(i=0; i<class_events.length; i++) {
+        c = class_events[i];
+        var match = false;
+        for(k=0; k<class_times.length; k++) {
+            if(class_times[k].start === c.start_date.getTime() && class_times[k].end == c.end_date.getTime()) {
+                match = true;
+                break;
+            }
+        }
+        if(!match) {
+            class_times.push({start: c.start_date.getTime(), end: c.end_date.getTime()});
+            h = (c.end_date - c.start_date) / (60 * 60 * 1000);
+            total_hours += h
+        }
+    }
+    return total_hours;
+}
+
 // Create the results infobox and show a spinner while additional scripts are
 // loaded & run
 function show_loading_box() {
@@ -308,7 +332,8 @@ function runBookmarklet() {
                    ' under <b>' + num_courses + '</b> course' + (num_courses == 1 ? '' : 's') + '.</br>' +
                    'I could not understand <b>' + num_problem_rows + '</b> row' + (num_problem_rows == 1 ? '' : 's') +
                    ' (highlighted in <span class="ics_c_r">red</span>).</br>' +
-                   'The calendar file contains <b>' + num_events + '</b> event' + (num_events == 1 ? '' : 's') + '.' +
+                   'The calendar file contains <b>' + num_events + '</b> event' + (num_events == 1 ? '' : 's') + '.</p>' +
+                   '<p><i>Experimental:</i> You have <b>' + (+get_hours_of_class(class_events).toFixed(1)) + '</b> hours of class weekly.' +
                    '</p>');
 
     infobox.append('<p style="font-size:0.5em; text-align:right;">' +
