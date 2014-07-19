@@ -266,8 +266,8 @@ function initBookmarklet() {
     } catch (e) {
         scripts.push('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/blob.js');
     }
-
-    frame.$.when.apply(this, scripts).done(runBookmarklet);
+    
+    frame.$.when.apply(this, frame.$.map(scripts, frame.$.getScript)).done(runBookmarklet);
 }
 
 // Parse the page to create the iCalendar file
