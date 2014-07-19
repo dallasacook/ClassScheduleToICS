@@ -10,10 +10,10 @@
  * License: MIT (see LICENSE.md)
  */
 
-var ver = '140717';
+var ver = '140718';
 var frame = parent.TargetContent;
 var allowed_weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-var num_courses = 0, num_rows = 0, num_problem_rows = 0, num_events = 0;
+var num_courses = 0, num_rows = 0, num_problem_rows = 0;
 var link_text = 'Download .ics file';
 
 // 11:30AM -> 41400
@@ -60,8 +60,10 @@ function escape_ics_text(text) {
     return text.trim().replace(/[;,\\]/g, '\\$&').replace(/\r\n|\r|\n/gm, '\\n');
 }
 
-function create_ics_wrap(events) {
-        return 'BEGIN:VCALENDAR\r\n'
+// Return iCalendar string given array of class event info
+function create_ics(class_events) {
+        
+        var s = 'BEGIN:VCALENDAR\r\n'
         +'PRODID:-//Leo Koppel//Queen\'s Soulless Calendar Exporter v' + ver + '//EN\r\n'
         +'VERSION:2.0\r\n'
 
@@ -83,20 +85,34 @@ function create_ics_wrap(events) {
         +'DTSTART:19701101T020000\r\n'
         +'RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU\r\n'
         +'END:STANDARD\r\n'
-        +'END:VTIMEZONE\r\n'
-        + events.join('\r\n')
-        +'END:VCALENDAR\r\n';
+        +'END:VTIMEZONE\r\n';
+        
+        for(var i=0; i<class_events.length; i++) {
+            var c = class_events[i];
+            s += ('\r\nBEGIN:VEVENT\r\n'
+              +'DTSTART;TZID=America/New_York:' + date_to_string(c.start_date) + '\r\n'
+              +'DTEND;TZID=America/New_York:' + date_to_string(c.end_date) + '\r\n'
+              +'SUMMARY:' + c.course_code + ' ' + c.component + '\r\n'
+              +'LOCATION:' + title_case(c.room) + '\r\n'
+              +'DESCRIPTION:' + c.course_code + ' - ' + c.course_name + ' ' + c.component + '. ' + c.instructor + '\r\n'
+              +'RRULE:FREQ=WEEKLY;UNTIL=' + date_to_string(c.range_end_date) + 'Z' + '\r\n'
+              +'END:VEVENT\r\n');
+        }
+      
+        s += '\r\nEND:VCALENDAR\r\n';
+        return s;
 }
 
-// Parse a single row (given as an array of table cell content) and return the ICS string.
-// If the row should be ignored return false
-function row_to_ics(course_code, course_name, cells) {
-    // Sometimes solus lists extra rows with no date/time (?). Ignore them.
+// Parse a single row (given as an array of table cell content) into an event
+// object. If successful, add it to the output array and return true.
+// If the row could not be understood, throw an exception.
+function parse_row(course_code, course_name, cells, output_array) {
+          // Sometimes solus lists extra rows with no date/time (?). Ignore them.
           if(cells[3].trim().length == 0) {
               throw('Row is missing Days & Times field.');
           }
 
-          // Ignore the following columns:
+          // Ignore the first two columns:
           //class_nbr = cells[0]; //ignore
           //section = cells[1]; //ignore
 
@@ -128,53 +144,50 @@ function row_to_ics(course_code, course_name, cells) {
           // This is not trivial as "start_day" could be before this - probably the monday of that week, but not for sure
           // We have, e.g. "Mo 11:30AM - 12:30PM" from which we can get day of week and we know it is after range_start_date.
           // JS days start at 0 for Sunday, and so does allowed_weekdays
-          var start_day = allowed_weekdays.indexOf(input_weekday);
-
-          if(start_day == -1 && input_weekday.length > 2) {
-              // It could be that SOLUS gives more than one day, e.g. "TuTh" for both Tues. and Thurs.
-              // In this case, split it up and recurse.
-              var valid_weekdays = true;
-              var new_rows = [];
-              for(var i=0; i<input_weekday.length; i+=2) {
-                  var single_weekday = input_weekday.slice(i,i+2);
-                  if(allowed_weekdays.indexOf(single_weekday) == -1) {
-                      valid_weekdays = false;
-                      break;
-                  } else {
-                      var new_cells = cells.slice(0);
-                      new_cells[3] = single_weekday + ' ' + days_and_times.slice(1).join(' ');
-                      new_rows.push(new_cells);
-                  }
+          //
+          // Also, it could be that SOLUS gives more than one day, e.g. "TuTh" for both Tues. and Thurs.
+          // Thus we treat the field as a string of one or more two-character weekdays to begin with
+          var start_days = [];
+ 
+          for(var i=0; i<input_weekday.length; i+=2) {
+              // Check each two-character substring against valid weekdays
+              var single_start_day = allowed_weekdays.indexOf(input_weekday.slice(i,i+2));
+              if(single_start_day == -1) {
+                  // It's no good
+                  throw ('Unexpected weekday format: ' + allowed_weekdays);
+              } else {
+                  start_days.push(single_start_day);
               }
-              if(valid_weekdays) {
-                  // now recurse for new, single weekday rows.
-                  return new_rows.map(function(e) {return row_to_ics(course_code,course_name, e);}).join('\r\n');
-              }
-
-              throw ('Unexpected weekday format: ' + allowed_weekdays);
           }
-          var range_start_day = range_start_date.getDay();
-          var incr = (7-range_start_day+start_day)%7;
-
-          // The real event start and end dates. Assume no class runs through midnight.
-          var start_date = new Date(range_start_date.getTime() + incr*(24*60*60*1000) + time_to_seconds(input_start_time)*1000);
-          var end_date = new Date(range_start_date.getTime() + incr*(24*60*60*1000) + time_to_seconds(input_end_time)*1000);
-
-          num_events += 1;
-
-          return ('BEGIN:VEVENT\r\n'
-          +'DTSTART;TZID=America/New_York:' + date_to_string(start_date) + '\r\n'
-          +'DTEND;TZID=America/New_York:' + date_to_string(end_date) + '\r\n'
-          +'SUMMARY:' + course_code + ' ' + component + '\r\n'
-          +'LOCATION:' + title_case(room) + '\r\n'
-          +'DESCRIPTION:' + course_code + ' - ' + course_name + ' ' + component + '. ' + instructor + '\r\n'
-          +'RRULE:FREQ=WEEKLY;UNTIL=' + date_to_string(range_end_date) + 'Z' + '\r\n'
-          +'END:VEVENT\r\n');
-
+          
+          if(start_days.length > 0) {
+              // Now add an event object for each weekday (though there is usually only one)
+              console.log(start_days);
+              for(var i=0; i<start_days.length; i++) {
+                  var range_start_day = range_start_date.getDay();
+                  var incr = (7-range_start_day+start_days[i])%7; // number of days until the first occurrence of that weekday, after range_start_date 
+        
+                  // The real event start and end dates. Assume no class runs through midnight (I don't know how SOLUS would show this anyway).
+                  var start_date = new Date(range_start_date.getTime() + incr*(24*60*60*1000) + time_to_seconds(input_start_time)*1000);
+                  var end_date = new Date(range_start_date.getTime() + incr*(24*60*60*1000) + time_to_seconds(input_end_time)*1000);
+                  
+                  output_array.push({start_date:start_date,
+                                     end_date : end_date,
+                                     range_end_date : range_end_date,
+                                     course_code : course_code,
+                                     course_name : course_name,
+                                     component : component,
+                                     room : room,
+                                     instructor : instructor});
+              }
+              return true;
+          }
+          
+          return false;
 }
 
-function create_ics() {
-    var ics_events = [];
+function get_class_events() {
+    var class_events = [];
     if(frame.$('.PSGROUPBOXWBO').length == 0) {
         throw "Course tables not found.";
     }
@@ -185,32 +198,32 @@ function create_ics() {
         var course_code = escape_ics_text(_course_title_parts[0]);
         var course_name = escape_ics_text(_course_title_parts[1]);
 
-       var component = '';
+        var component = '';
 
-       // for each row
-       frame.$(this).find("tr:gt(7)").each(function() {
-          try {
-            var cells = frame.$(this).find('td').map(function() { return frame.$(this).text(); });
-            var event_string = row_to_ics(course_code, course_name, cells);
-            if (event_string) {
-                // now append to the ics string
-                ics_events.push(event_string);
-                frame.$(this).find('td').addClass('ics_c_g'); // mark in light green
+        // for each row
+        frame.$(this).find("tr:gt(7)").each(function() {
+
+            try {
+                var cells = frame.$(this).find('td').map(function() { return frame.$(this).text(); });
+                var valid_row = parse_row(course_code, course_name, cells, class_events);
+                if (valid_row) {
+                    // highlight it in green
+                    frame.$(this).find('td').addClass('ics_c_g');
+                }
             }
-          }
-          catch(err) {
-            // add the row to the 'could not parse' count and highlight it
-            num_problem_rows += 1;
-            frame.$(this).find('td').addClass('ics_c_r');
-          }
+            catch(err) {
+                 // add the row to the 'could not parse' count and highlight it red
+                 num_problem_rows += 1;
+                 frame.$(this).find('td').addClass('ics_c_r');
+            }
 
-          num_rows += 1;
-       }); // end each row
+            num_rows += 1;
+        }); // end each row
 
-       num_courses += 1;
-    }); // end each course
+        num_courses += 1;
+     }); // end each course
 
-    return create_ics_wrap(ics_events);
+     return class_events;
 }
 
 // Create the results infobox and show a spinner while additional scripts are
@@ -236,10 +249,33 @@ function show_loading_box() {
 
 }
 
+
+function initBookmarklet() {
+
+        if(parent.TargetContent.location.pathname.indexOf('SSR_SSENRL_LIST.GBL') == -1) {
+            throw "List view not found.";
+        }
+
+       try {
+           var checkBlobSupport = !!new frame.Blob;
+           frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/filesaver.js').done(runBookmarklet);
+       } catch (e) {
+           frame.$.when(frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/filesaver.js'),
+               frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/blob.js')).done(runBookmarklet);
+       }
+
+}
+
+// Parse the page to create the iCalendar file
 // Create the download link for a file containing ics_content
 // and show info about the script results
-function show_results(ics_content) {
-
+function runBookmarklet() {
+    
+    var class_events = get_class_events();
+    console.log(class_events);
+    var num_events = class_events.length;
+    var ics_content = create_ics(class_events);
+    
     // Construct message to user
     var msg = '';
 
@@ -261,7 +297,7 @@ function show_results(ics_content) {
     var infobox = frame.$('#ics_box');
     frame.$('#ics_spinner').remove();
 
-    var msg_p = frame.$('<p id="ics_results_msg">' + msg + '</p>').appendTo(infobox);
+    infobox.append('<p id="ics_results_msg">' + msg + '</p>');
     var download_p = frame.$('<p style="text-align:center">').appendTo(infobox);
 
     var download_button = frame.$('<button type="button" id="ics_download_link">' + link_text + '</button>').appendTo(download_p);
@@ -298,32 +334,6 @@ function show_results(ics_content) {
         download_button.hide();
         infobox.css('background-color', '#edc2c2');
     }
-
-}
-
-function initBookmarklet() {
-
-        if(parent.TargetContent.location.pathname.indexOf('SSR_SSENRL_LIST.GBL') == -1) {
-            throw "List view not found.";
-        }
-
-       try {
-           var checkBlobSupport = !!new frame.Blob;
-           frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/filesaver.js').done(runBookmarklet);
-       } catch (e) {
-           frame.$.when(frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/filesaver.js'),
-               frame.$.getScript('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/blob.js')).done(runBookmarklet);
-       }
-
-}
-
-function runBookmarklet() {
-
-    var checkBlobSupport = !!new frame.Blob;
-
-    ics_content = create_ics();
-
-    show_results(ics_content);
 
 }
 
