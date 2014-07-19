@@ -10,7 +10,7 @@
  * License: MIT (see LICENSE.md)
  */
 
-var ver = '140719';
+var ver = '140719b';
 var frame = parent.TargetContent;
 var allowed_weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 var num_courses = 0, num_rows = 0, num_problem_rows = 0;
@@ -247,8 +247,7 @@ function get_hours_of_class(class_events) {
         }
         if(!match) {
             class_times.push({start: c.start_date.getTime(), end: c.end_date.getTime()});
-            h = (c.end_date - c.start_date) / (60 * 60 * 1000);
-            total_hours += h
+            total_hours += (c.end_date - c.start_date) / (60 * 60 * 1000);
         }
     }
     return total_hours;
@@ -264,7 +263,6 @@ function combine_duplicate_classes(input_events) {
         x = input_events[i];
         for(k=0; k<output_events.length; k++) {
             y = output_events[k];
-            matches = [];
             dup = true;
             for(p in x) {
                 if(x.start_date.getTime() != y.start_date.getTime()
@@ -285,7 +283,7 @@ function combine_duplicate_classes(input_events) {
             }
         }
         if(!dup) {
-            output_events.push(x);
+            output_events.push(frame.$.extend({}, x)); // clone the object
         }
     }
     return output_events;
@@ -326,8 +324,17 @@ function initBookmarklet() {
     } catch (e) {
         scripts.push('https://googledrive.com/host/0B4PDwhAa-jNITkc4MTh5M1BoZG8/blob.js');
     }
-    
+
     frame.$.when.apply(this, frame.$.map(scripts, frame.$.getScript)).done(runBookmarklet);
+}
+
+
+// Currently, either combine duplicate labs or leave as is
+function apply_options(class_events, combine) {
+    if(combine) {
+        class_events = combine_duplicate_classes(class_events);
+    }
+    return class_events;
 }
 
 // Parse the page to create the iCalendar file
@@ -335,22 +342,20 @@ function initBookmarklet() {
 // and show info about the script results
 function runBookmarklet() {
 
-    var class_events = get_class_events();
-    var num_events = class_events.length;
+    var orig_class_events = get_class_events();
 
     // Remove duplicate labs
-    class_events = combine_duplicate_classes(class_events);
-    var num_removed = num_events - class_events.length;
-    num_events = class_events.length;
+    var class_events = apply_options(orig_class_events, true);
 
     // Construct iCalendar file
     var ics_content = create_ics(class_events);
 
     // Construct message to user
     var msg = '';
+    var success = (class_events.length > 0);
 
-    if(num_events > 0) {
-        msg += '<b>Success!</b> A calendar file was created.';
+    if(success) {
+        msg += '<h3>Success!</h3> A calendar file was created.';
 
         // Safari problems require manual workarounds for now
         if (navigator.userAgent.indexOf('Safari') != -1 && navigator.userAgent.indexOf('Chrome') == -1) {
@@ -359,26 +364,42 @@ function runBookmarklet() {
             'For example, as <i>classes.ics</i>. Then import into your calendar software.';
         }
     } else {
-        msg += '<b>Failure.</b> A calendar file could not be created.';
+        msg += '<h3>Failure.</h3> A calendar file could not be created.';
     }
 
     // Create page elements
     var infobox = frame.$('#ics_box');
-    frame.$('#ics_spinner').remove();
+    frame.$('#ics_spinner').hide();
 
-    infobox.append('<p id="ics_results_msg">' + msg + '</p>');
-    var download_p = frame.$('<p style="text-align:center">').appendTo(infobox);
+    infobox.prepend('<p id="ics_results_msg">' + msg + '</p>'); //prepend before spinner
+    var download_p = frame.$('<div style="text-align:center">').appendTo(infobox);
 
     var download_button = frame.$('<button type="button" id="ics_download_link">' + link_text + '</button>').appendTo(download_p);
 
-    infobox.append('<p>' + 'I found <b>' + num_rows + '</b> row' + (num_rows == 1 ? '' : 's') +
-                   ' under <b>' + num_courses + '</b> course' + (num_courses == 1 ? '' : 's') + '.</br>' +
-                   'I could not understand <b>' + num_problem_rows + '</b> row' + (num_problem_rows == 1 ? '' : 's') +
-                   ' (highlighted in <span class="ics_c_r">red</span>).</br>' +
-                   ' <b>' + num_removed + '</b> overlapping event' + (num_removed == 1 ? '' : 's') + ' were merged into another.</br>' +
-                   'The calendar file contains <b>' + num_events + '</b> event' + (num_events == 1 ? '' : 's') + '.</p>' +
-                   '<p><i>Experimental:</i> You have <b>' + (+get_hours_of_class(class_events).toFixed(1)) + '</b> hours of class weekly.' +
-                   '</p>');
+    if(success) {
+        infobox.append('<h3>Options</h3>' +
+                       '<input type="checkbox" id="ics_opt_combine" checked/><label for="ics_opt_combine">' +
+                       'Combine duplicate events (only Room differs)</label>');
+    }
+
+    var statbox = frame.$('<div id="ics_stats">').appendTo(infobox);
+
+    // Rewrite the stats div. Function so it can be called when options change.
+    function update_stats() {
+        statbox.html('<h3>Stats</h3>' +
+                     '<p>' + 'I found <b>' + num_rows + '</b> row' + (num_rows == 1 ? '' : 's') +
+                     ' under <b>' + num_courses + '</b> course' + (num_courses == 1 ? '' : 's') + '.</br>' +
+                     'I could not understand <b>' + num_problem_rows + '</b> row' + (num_problem_rows == 1 ? '' : 's') +
+                     ' (highlighted in <span class="ics_c_r">red</span>).</br>' +
+                     'The calendar file contains <b>' + class_events.length + '</b> event' + (class_events.length == 1 ? '' : 's') + '.</p>');
+
+        if(success) {
+            statbox.append('<p><i>Experimental:</i> You have <b>' + (+get_hours_of_class(class_events).toFixed(1)) + '</b>' +
+                           ' hours of class weekly.</p>');
+        }
+    }
+
+    update_stats();
 
     infobox.append('<p style="font-size:0.5em; text-align:right;">' +
                    '<a href="http://blog.whither.ca/export-solus-course-calendar/" target="_blank">Instructions</a>' +
@@ -393,17 +414,41 @@ function runBookmarklet() {
         return false;
     });
 
+
+    frame.$('#ics_opt_combine').change(function() {
+
+        frame.$('#ics_spinner').height(download_p.height());
+        download_p.hide();
+        frame.$('#ics_spinner').show();
+
+        setTimeout(function() {
+            // Updating the info is virtually instantaneous
+            // This timeout is just so the user notices the change
+            frame.$('#ics_spinner').hide();
+            download_p.show();
+        }, 80);
+        
+        class_events = apply_options(orig_class_events, this.checked);
+
+        // Reconstruct iCalendar file
+        ics_content = create_ics(class_events);
+        update_stats();
+    });
+
+
     // Add styling for info box and previously highlighted (classed) rows
     frame.$('<style type="text/css"> ' +
       '.ics_c_r { background-color: #e37d7d; } ' +
       '.ics_c_g { background-color: #ebffeb; } ' +
+      'h3 { font-size: 1em; }' +
       '</style>').appendTo("head");
 
-    if(num_events > 0) {
+    if(success) {
         download_button.css('font-size', '1.5em');
     } else {
         download_button.hide();
-        infobox.css('background-color', '#edc2c2');
+        infobox.css({'background-color': '#edc2c2',
+                     'border-color': '#a37272'});
     }
 
 }
