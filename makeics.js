@@ -382,17 +382,20 @@ function runBookmarklet() {
 
     // Rewrite the stats div. Function so it can be called when options change.
     function update_stats() {
-        statbox.html('<h3>Stats</h3>' +
-                     '<p>' + 'I found <b>' + num_rows + '</b> row' + (num_rows == 1 ? '' : 's') +
-                     ' under <b>' + num_courses + '</b> course' + (num_courses == 1 ? '' : 's') + '.</br>' +
-                     'I could not understand <b>' + num_problem_rows + '</b> row' + (num_problem_rows == 1 ? '' : 's') +
-                     ' (highlighted in <span class="ics_c_r">red</span>).</br>' +
-                     'The calendar file contains <b>' + class_events.length + '</b> event' + (class_events.length == 1 ? '' : 's') + '.</p>');
-
-        if(success) {
-            statbox.append('<p><i>Experimental:</i> You have <b>' + (+get_hours_of_class(class_events).toFixed(1)) + '</b>' +
-                           ' hours of class weekly.</p>');
+        msg = '<h3>Stats</h3>' +
+              '<p>' + 'I found <b>' + num_rows + '</b> row' + (num_rows == 1 ? '' : 's') +
+              ' under <b>' + num_courses + '</b> course' + (num_courses == 1 ? '' : 's') + '.</br>';
+        if(num_problem_rows > 0) {
+            msg += 'I could not export <b>' + num_problem_rows + '</b> row' + (num_problem_rows == 1 ? '' : 's') +
+                   ' (highlighted in <span class="ics_c_r">red</span>).</br>';
         }
+        msg += 'The calendar file contains <b>' + class_events.length + '</b> event' + (class_events.length == 1 ? '' : 's') + '.</p>';
+        if(success) {
+            msg += '<p><i>Experimental:</i> You have <b>' + (+get_hours_of_class(class_events).toFixed(1)) + '</b>' +
+                   ' hours of class weekly.</p>';
+        }
+
+        statbox.html(msg);
     }
 
     update_stats();
