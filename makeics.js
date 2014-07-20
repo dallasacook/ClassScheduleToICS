@@ -60,32 +60,28 @@ function create_ics(class_events) {
     var s = 'BEGIN:VCALENDAR\r\n' +
     'PRODID:-//Leo Koppel//Queen\'s Soulless Calendar Exporter v' + ver + '//EN\r\n' +
     'VERSION:2.0\r\n' +
-    // timezone definition from http://erics-notes.blogspot.ca/2013/05/fixing-ics-time-zone.html
     'BEGIN:VTIMEZONE\r\n' +
-    'TZID:America/New_York\r\n' +
-    'X-LIC-LOCATION:America/New_York\r\n' +
-    'BEGIN:DAYLIGHT\r\n' +
-    'TZOFFSETFROM:-0500\r\n' +
-    'TZOFFSETTO:-0400\r\n' +
-    'TZNAME:EDT\r\n' +
-    'DTSTART:19700308T020000\r\n' +
-    'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU\r\n' +
-    'END:DAYLIGHT\r\n' +
+    'TZID:America/Toronto\r\n' +
     'BEGIN:STANDARD\r\n' +
+    'DTSTART:16011104T020000\r\n' +
+    'RRULE:FREQ=YEARLY;BYDAY=1SU;BYMONTH=11\r\n' +
     'TZOFFSETFROM:-0400\r\n' +
     'TZOFFSETTO:-0500\r\n' +
-    'TZNAME:EST\r\n' +
-    'DTSTART:19701101T020000\r\n' +
-    'RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU\r\n' +
     'END:STANDARD\r\n' +
+    'BEGIN:DAYLIGHT\r\n' +
+    'DTSTART:16010311T020000\r\n' +
+    'RRULE:FREQ=YEARLY;BYDAY=2SU;BYMONTH=3\r\n' +
+    'TZOFFSETFROM:-0500\r\n' +
+    'TZOFFSETTO:-0400\r\n' +
+    'END:DAYLIGHT\r\n' +
     'END:VTIMEZONE\r\n';
 
     var i, c;
     for(i=0; i<class_events.length; i++) {
         c = class_events[i];
         s += ('\r\nBEGIN:VEVENT\r\n' +
-        'DTSTART;TZID=America/New_York:' + date_to_string(c.start_date) + '\r\n' +
-        'DTEND;TZID=America/New_York:' + date_to_string(c.end_date) + '\r\n' +
+        'DTSTART;TZID=America/Toronto:' + date_to_string(c.start_date) + '\r\n' +
+        'DTEND;TZID=America/Toronto:' + date_to_string(c.end_date) + '\r\n' +
         'SUMMARY:' + escape_ics_text(c.course_code + ' ' + c.component) + '\r\n' +
         'LOCATION:' + escape_ics_text(title_case(c.room)) + '\r\n' +
         'DESCRIPTION:' + escape_ics_text(c.course_code + ' - ' + c.course_name + ' ' + c.component + '. ' + c.instructor) + '\r\n' +
