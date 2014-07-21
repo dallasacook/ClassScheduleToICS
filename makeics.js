@@ -10,13 +10,13 @@
  * License: MIT (see LICENSE.md)
  */
 
-var ver = '140719b';
+var ver = '140720';
 var frame = parent.TargetContent;
 var allowed_weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 var num_courses = 0, num_rows = 0, num_problem_rows = 0;
 var link_text = 'Download .ics file';
 
-// 11:30AM -> 41400
+// "11:30AM" -> 41400
 function time_to_seconds(time_str) {
     // time_str can be in the form "2:30PM" or "14:30" -- varies by browser for some reason.
     var m = time_str.match(/(\d*):(\d*)(\wM)?/);
@@ -28,6 +28,7 @@ function time_to_seconds(time_str) {
     return (hour * 60 + min) * 60;
 }
 
+// Add (only one) leading zero if needed to make a two-digit number
 function pad(n) {
     if(n < 10) {
         return '0' + n;
@@ -35,12 +36,19 @@ function pad(n) {
     return n.toString();
 }
 
-// JS Date -> 20130602T130000
+// JS Date -> 20130602T130000 (in its own timezone)
 function date_to_string(date) {
     return date.getFullYear() + pad(date.getMonth() + 1) + pad(date.getDate()) +
     'T' + pad(date.getHours()) + pad(date.getMinutes()) + pad(date.getSeconds());
 }
 
+// JS Date -> 20130602T210000Z (using UTC time)
+function date_to_string_UTC(date) {
+    return date.getUTCFullYear() + pad(date.getUTCMonth() + 1) + pad(date.getUTCDate()) +
+    'T' + pad(date.getUTCHours()) + pad(date.getUTCMinutes()) + pad(date.getUTCSeconds()) + 'Z';
+}
+
+// Turn capitalized names into friendlier title-case names
 function title_case(str) {
     return str.replace(/\w[^\s-]*/g, function(txt) {
         return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
@@ -54,12 +62,17 @@ function escape_ics_text(text) {
 }
 
 
-// Return iCalendar string given array of class event info
+// Return an iCalendar object (a string), given an array of class event info
+// This should conform to the iCalendar spec (http://tools.ietf.org/html/rfc5545.html)
 function create_ics(class_events) {
 
+
+    // date the calendar object was created (right now)
+    var dtstamp = date_to_string_UTC(new Date());
+
     var s = 'BEGIN:VCALENDAR\r\n' +
-    'PRODID:-//Leo Koppel//Queen\'s Soulless Calendar Exporter v' + ver + '//EN\r\n' +
     'VERSION:2.0\r\n' +
+    'PRODID:-//Leo Koppel//Queen\'s Soulless Calendar Exporter v' + ver + '//EN\r\n' +
     'BEGIN:VTIMEZONE\r\n' +
     'TZID:America/Toronto\r\n' +
     'BEGIN:STANDARD\r\n' +
@@ -78,19 +91,32 @@ function create_ics(class_events) {
 
     var i, c;
     for(i=0; i<class_events.length; i++) {
+        // Construct an event calendar component for each class event.
+        // Note about dates:
+        // DTSTART and DTEND and given as fixed dates in Eastern Time (since
+        // SOLUS shows schedules in the Univesity's own time zone), ignoring
+        // the Date object's own timezone offset (which varies by client).
+        // DTSTAMP and UNTIL dates however, must be given in UTC time. Just
+        // an idiosyncrasy of the standard.
         c = class_events[i];
-        s += ('\r\nBEGIN:VEVENT\r\n' +
+        s += ('BEGIN:VEVENT\r\n' +
+        'DTSTAMP:' + dtstamp + '\r\n' +
+        'UID:' + dtstamp + i + '@' + window.location.hostname + '\r\n' +
         'DTSTART;TZID=America/Toronto:' + date_to_string(c.start_date) + '\r\n' +
         'DTEND;TZID=America/Toronto:' + date_to_string(c.end_date) + '\r\n' +
         'SUMMARY:' + escape_ics_text(c.course_code + ' ' + c.component) + '\r\n' +
         'LOCATION:' + escape_ics_text(title_case(c.room)) + '\r\n' +
         'DESCRIPTION:' + escape_ics_text(c.course_code + ' - ' + c.course_name + ' ' + c.component + '. ' + c.instructor) + '\r\n' +
-        'RRULE:FREQ=WEEKLY;UNTIL=' + date_to_string(c.range_end_date) + 'Z' + '\r\n' +
+        'RRULE:FREQ=WEEKLY;UNTIL=' + date_to_string_UTC(c.range_end_date) + '\r\n' +
         'END:VEVENT\r\n');
     }
 
-    s += '\r\nEND:VCALENDAR\r\n';
-    return s;
+    s += 'END:VCALENDAR\r\n';
+
+    // Fold long lines
+    // (RFC5445: "Lines of text SHOULD NOT be longer than 75 octets, excluding the line break")
+    // Split using CRLF followed by space
+    return s.replace(/(.{75})/g,"$1\r\n ");
 }
 
 // Parse a single row (given as an array of table cell content) into an event
@@ -130,9 +156,7 @@ function parse_row(course_code, course_name, cells, output_array) {
     // e.g. '9:30AM'
     var range_start_date = new Date(Date.parse(start_and_end[0]));
 
-    // annoyingly, UNTIL must be given in UTC time
-    // even then, there were odd issues with calendars ending recurring events a day earlier
-    // this quick fix just adds a day.
+    // Add a day to the end of the range as SOLUS treats it as inclusive, unlike iCalendar
     var range_end_date = new Date(Date.parse(start_and_end[1]));
     range_end_date.setTime(range_end_date.getTime() + 24 * (60 * 60 * 1000));
 
@@ -426,7 +450,7 @@ function runBookmarklet() {
             frame.$('#ics_spinner').hide();
             download_p.show();
         }, 80);
-        
+
         class_events = apply_options(orig_class_events, this.checked);
 
         // Reconstruct iCalendar file
